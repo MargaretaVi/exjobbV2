@@ -1,14 +1,17 @@
 import bpy, os, math, mathutils, sys, pdb, re
 from PIL import Image
-from numpy import random
+from numpy import random as rand
 import xml.etree.cElementTree as ET
+from random import *
 
-# camera.location = (7.4811, -6.5076, 5.3437) original camera position in blender
-# (2.03913, -1.55791, 1.26075)
+def pixel_area():
+	return bpy.context.scene.render.resolution_x * bpy.context.scene.render.resolution_y
+
+
 def render_resolution():
     bpy.context.scene.render.resolution_percentage = 100
-    bpy.context.scene.render.resolution_x = 740
-    bpy.context.scene.render.resolution_y = 740
+    bpy.context.scene.render.resolution_x = 512
+    bpy.context.scene.render.resolution_y = 512
 
 
 def add_background(filepath):
@@ -22,7 +25,7 @@ def add_background(filepath):
             space_data.show_background_images = True
             background.view_axis = 'CAMERA'
             break
-    texture_name = os.path.splitext(filepath)[0]       
+    texture_name = os.path.splitext(filepath)[0]
     texture = bpy.data.textures.new(texture_name, 'IMAGE')
     texture.image = img
     bpy.data.worlds['World'].active_texture = texture
@@ -57,21 +60,22 @@ def point_camera_to_target(cam, position):
 
     cam.rotation_euler = mathutils.Euler((xRad, 0, zRad), 'XYZ')
 
+
 def rotate_camera_by_angle(camera, radians_angle, obj):
     camera_location_rotation = mathutils.Matrix.Rotation(radians_angle, 4, 'Z')
     camera.location.rotate(camera_location_rotation)
-    rand_index = random.randint(0,2)
+    rand_index = rand.randint(0,2)
 
     position = ((obj.location.x, obj.location.y, obj.location.z))
-    rand_x = random.randint(-6,6)
-    rand_y = random.randint(-6,6)
-    rand_z = random.randint(-4,4)
+    rand_x = rand.randint(-4,4)
+    rand_y = rand.randint(-4,4)
+    rand_z = rand.randint(-4,4)
     if rand_index == 0:
         # point towards object center
         pass
     elif rand_index == 1:
         position = ((obj.location.x + rand_x, obj.location.y + rand_y, obj.location.z + rand_z))
-   
+
     point_camera_to_target(camera, position)
 
 
@@ -97,23 +101,38 @@ def delete_and_add_correct_light_source(meshObjectPos):
             bpy.ops.object.delete()
 
     # Add lamp object, type HEMI
-    bpy.ops.object.lamp_add(type='HEMI', radius=1, view_align=False, location=(meshObjectPos.x, meshObjectPos.y, 10),
+    bpy.ops.object.lamp_add(type='HEMI', radius=3, view_align=False, location=(meshObjectPos.x, meshObjectPos.y, 10),
                             layers=(
                                 True, False, False, False, False, False, False, False, False, False, False, False,
                                 False,
                                 False, False, False,
                                 False, False, False, False))
 
-
-def change_camera_location(camera_pos_index, camera_object):
-    if camera_pos_index == 1: # Default blender camera position 
+def reset_camera_location(camera_pos_index, camera_object):
+    if camera_pos_index == 1: # Default blender camera position
         camera_object.location = (18.44144, -17.26113, 13.67201)
     elif camera_pos_index == 2:
-        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z - 7)
+        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z + 5)
     elif camera_pos_index == 3:
-        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z + 7)
+        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z - 5)
+    elif camera_pos_index == 4:
+        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z - 10)
     else:
         pass
+
+
+def change_camera_location(camera_pos_index, camera_object):
+    if camera_pos_index == 1: # Default blender camera position
+        camera_object.location = (18.44144, -17.26113, 13.67201)
+    elif camera_pos_index == 2:
+        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z - 5)
+    elif camera_pos_index == 3:
+        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z + 5)
+    elif camera_pos_index == 4:
+        camera_object.location = (camera_object.location.x, camera_object.location.y, camera_object.location.z + 10)
+    else:
+        pass
+
 
 class Box:
 
@@ -152,6 +171,7 @@ class Box:
         if self.width == 0 or self.height == 0:
             return (0, 0, 0, 0)
         return (self.x, self.y, self.width, self.height)
+
 
 def camera_view_bounds_2d(scene, cam_ob, me_ob):
     """
@@ -221,11 +241,12 @@ def camera_view_bounds_2d(scene, cam_ob, me_ob):
 
     return Box(min_x, min_y, max_x, max_y, dim_x, dim_y)
 
+
 def clamp(x, minimum, maximum):
     return max(minimum, min(x, maximum))
 
 
-def write_to_xml(saving_image_path, render_res, scene, cam_obj, obj_dict):
+def write_to_xml(saving_image_path, render_res, scene, cam_obj, render_obj):
     xml_filename = saving_image_path[:-5]+ '.xml'
     fname = os.path.basename(saving_image_path)
     folder =  os.path.basename(os.path.dirname(saving_image_path))
@@ -243,11 +264,10 @@ def write_to_xml(saving_image_path, render_res, scene, cam_obj, obj_dict):
     ET.SubElement(size, "height").text = str(height)
     ET.SubElement(size, "depth").text = "3"
     ET.SubElement(annotation, "segmented").text = "0"
-    # loop for each object
-    for key in obj_dict:
-        render_obj = obj_dict[key]
-        obj_node = ET.SubElement(annotation, "object")
 
+    tmp_obj_name, _ = os.path.splitext(bpy.path.basename(bpy.context.blend_data.filepath))
+    if render_obj.name.lower() == tmp_obj_name.lower():
+        obj_node = ET.SubElement(annotation, "object")
         ET.SubElement(obj_node, "name").text = render_obj.name
         ET.SubElement(obj_node, "pose").text = "Unspecified"
 
@@ -260,16 +280,18 @@ def write_to_xml(saving_image_path, render_res, scene, cam_obj, obj_dict):
         else:
             ET.SubElement(obj_node, "truncated").text = "0"
         ET.SubElement(obj_node, "difficult").text = "0"
-        bbox =  ET.SubElement(obj_node, "bndbox")  
+        bbox =  ET.SubElement(obj_node, "bndbox")
 
 
         ET.SubElement(bbox, "xmin").text = xmin
         ET.SubElement(bbox, "ymin").text = ymin
         ET.SubElement(bbox, "xmax").text = str(xmax)
         ET.SubElement(bbox, "ymax").text = str(ymax)
-
-    tree = ET.ElementTree(annotation)  
-    tree.write(xml_filename)  
+    else:
+        print("object name do not match file name, {} ,{}".format(tmp_obj_name, render_obj.name))
+        exit(1)
+    tree = ET.ElementTree(annotation)
+    tree.write(xml_filename)
 
 def check_truncated(xmin, ymin, xmax, ymax, image_resolution):
     width = image_resolution[0]
@@ -316,7 +338,7 @@ def main(sys):
     bpy.context.scene.render.image_settings.file_format = 'JPEG'
     argv = sys.argv
     argv = argv[argv.index("--") + 1:]
-  
+
     background_folder_path = argv[0]
     background_folder_full_path = os.path.abspath(background_folder_path)
     texture_folder_path = argv[1]
@@ -327,7 +349,7 @@ def main(sys):
     blend_file_name = os.path.basename(os.path.splitext(blend_file)[0])
 
     render_resolution()
-    render_res =(bpy.context.scene.render.resolution_x, 
+    render_res =(bpy.context.scene.render.resolution_x,
         bpy.context.scene.render.resolution_y)
 
     camera = bpy.data.objects["Camera"]
@@ -335,9 +357,10 @@ def main(sys):
     scene = bpy.context.scene
 
     counter = 0
-    degree = 15
+    degree = 36
     rotate_angle = math.radians(degree)
     number_of_frames = int(360 / degree)
+    image_area = pixel_area()
 
     list_of_texture = os.listdir(texture_folder_full_path)
 
@@ -346,8 +369,8 @@ def main(sys):
     for obj in bpy.data.objects:
         if obj.type == 'MESH':
             bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-            object_dictionary[obj.name] = obj
-
+            render_object = obj
+            #object_dictionary[obj.name] = obj
 
     #Setting the background
     for background in os.listdir(background_folder_full_path):
@@ -355,28 +378,42 @@ def main(sys):
         add_background(background_path)
         for index in range(0,3):
             change_camera_location(index, camera)
-            for frame in range( 1, number_of_frames):
-                add_texture_to_all_objects(object_dictionary, list_of_texture, texture_folder_full_path)
-                for key in object_dictionary:
-                    render_object= object_dictionary[key]
-                    scale_factor = 0.2*render_object.scale[0]
-                    #randomly change the scale of an object
-                    choice = random.randint(0,3)
-                    change_scale_of_object(render_object, choice, scale_factor)
+            for frame in range( 0, number_of_frames):
+                delta_x, delta_y, delta_z = change_postion(render_object)
+                for texture in list_of_texture:
+                    fname = os.path.join(texture_folder_full_path, texture)
+                    add_texture_to_object(render_object, fname)
+                    scale_factor = 0.1*render_object.scale[0]
+                    choice = rand.randint(0,3)
+                    change_scale_of_object(render_object, choice, scale_factor, image_area, scene, camera)
                     rotate_camera_by_angle(camera, rotate_angle, render_object)
                     saving_path = os.path.join(saving_folder, ("%s_image_%d.jpeg") % (blend_file_name, counter))
-                    counter += 1       
+                    counter += 1
                     bpy.context.scene.render.filepath = saving_path
                     bpy.ops.render.render(write_still=True, use_viewport=True)
-                    write_to_xml(saving_path,render_res, scene, camera, object_dictionary)
+                    write_to_xml(saving_path,render_res, scene, camera, render_object)
                     reset_scale(render_object,choice, scale_factor)
+                reset_pos(render_object, delta_x, delta_y, delta_z)
+            reset_camera_location(index, camera)
+def reset_pos(obj, delta_x, delta_y, delta_z):
+    obj.location.y = obj.location.y - delta_x
+    obj.location.x = obj.location.x - delta_y
+    obj.location.z = obj.location.z - delta_z
+
+def change_postion(render_object):
+    delta_x = randint(-4,4)
+    delta_y = randint(-4,4)
+    delta_z = randint(-2,2)
+    render_object.location.y = render_object.location.y + delta_x
+    render_object.location.x = render_object.location.x + delta_y
+    render_object.location.z = render_object.location.z + delta_z
+    return delta_x, delta_y, delta_z
 
 def add_texture_to_all_objects(object_dict, list_of_texture, texture_folder_full_path):
-    for key in object_dict:     
+    for key in object_dict:
         render_object= object_dict[key]
-        rand_texture = random.choice(list_of_texture)
-        fname = os.path.join(texture_folder_full_path, rand_texture)
-        add_texture_to_object(render_object, fname)
+        rand_texture = rand.choice(list_of_texture)
+
 
 
 #Add texture to object
@@ -389,48 +426,48 @@ def add_texture_to_object(obj,texture_full_path):
 
 
 #Change the scale of object
-def change_scale_of_object(obj, index, scale_factor):
+def change_scale_of_object(obj, index, scale_factor, image_area, scene, cam_obj):
+    (_, _, width, height) = parse_bb_box(str(camera_view_bounds_2d(scene, cam_obj, obj)))
+    obj_area_rel_to_image = int(width) * int(height)
+    ratio = obj_area_rel_to_image / image_area
+    print('ratio:{}, obj_area_rel_to_image: {}, image_area: {}'.format(ratio, obj_area_rel_to_image, image_area))
     x_scale = obj.scale[0]
     y_scale = obj.scale[1]
     z_scale = obj.scale[2]
-
     if index == 0:
-        obj.scale[0] = x_scale - scale_factor
-        obj.scale[1] = y_scale - scale_factor
-        obj.scale[2] = z_scale - scale_factor
-
-    elif index == 1:
-        obj.scale[0] = x_scale + scale_factor
-        obj.scale[1] = y_scale + scale_factor
-        obj.scale[2] = z_scale + scale_factor    
-    elif index == 2:
         obj.scale[0] = x_scale + 2*scale_factor
         obj.scale[1] = y_scale + 2*scale_factor
-        obj.scale[2] = z_scale + 2*scale_factor      
+        obj.scale[2] = z_scale + 2*scale_factor
+    elif index == 1:
+        obj.scale[0] = x_scale + 1*scale_factor
+        obj.scale[1] = y_scale + 1*scale_factor
+        obj.scale[2] = z_scale + 1*scale_factor
+    elif index == 2:
+        obj.scale[0] = x_scale + 1.5*scale_factor
+        obj.scale[1] = y_scale + 1.5*scale_factor
+        obj.scale[2] = z_scale + 1.5*scale_factor
     else:
-        pass    
+        pass
 
 #Reset scale of object
 def reset_scale(obj,index, scale_factor):
     x_scale = obj.scale[0]
     y_scale = obj.scale[1]
     z_scale = obj.scale[2]
-    
     if index == 0:
-        obj.scale[0] = x_scale + scale_factor
-        obj.scale[1] = y_scale + scale_factor
-        obj.scale[2] = z_scale + scale_factor
-
-    elif index == 1:
-        obj.scale[0] = x_scale - scale_factor
-        obj.scale[1] = y_scale - scale_factor
-        obj.scale[2] = z_scale - scale_factor    
-    elif index == 2:
         obj.scale[0] = x_scale - 2*scale_factor
         obj.scale[1] = y_scale - 2*scale_factor
-        obj.scale[2] = z_scale - 2*scale_factor  
+        obj.scale[2] = z_scale - 2*scale_factor
+    elif index == 1:
+        obj.scale[0] = x_scale - 1*scale_factor
+        obj.scale[1] = y_scale - 1*scale_factor
+        obj.scale[2] = z_scale - 1*scale_factor
+    elif index == 2:
+        obj.scale[0] = x_scale - 1.5*scale_factor
+        obj.scale[1] = y_scale - 1.5*scale_factor
+        obj.scale[2] = z_scale - 1.5*scale_factor
     else:
-        pass   
+        pass
 
 
 if __name__ == "__main__":

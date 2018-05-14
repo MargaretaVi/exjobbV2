@@ -1,13 +1,14 @@
 import os, re
 import pdb
+from xml.etree import ElementTree as ET
 
-GROUND_TRUTH_BOUNDING_BOX = '/home/xmreality/Documents/exjobb/Object_detection_rcnn_automatic_annotation_test/test_images/'
-NETWORK_BOUNDING_BOX_DIR = '/home/xmreality/Documents/exjobb/Object_detection_rcnn_annotation_test/output/test_images/prediction'
+GROUND_TRUTH_BOUNDING_BOX_DIR = '/home/xmreality/Documents/tensorflow1/models/research/object_detection/test_images/'
+NETWORK_BOUNDING_BOX_DIR = '/home/xmreality/Documents/tensorflow1/models/research/object_detection/output/'
 
 lst_of_groundtruth_files = []
-for file in os.listdir(GROUND_TRUTH_BOUNDING_BOX):
+for file in os.listdir(GROUND_TRUTH_BOUNDING_BOX_DIR):
 	if file.endswith('xml'):	
-		lst_of_groundtruth_files.append(GROUND_TRUTH_BOUNDING_BOX + file)
+		lst_of_groundtruth_files.append(GROUND_TRUTH_BOUNDING_BOX_DIR + file)
 	
 # Calculates the Intersection over Union ratio. 
 def bounding_box_intersection_over_union(boxA, boxB):
@@ -34,6 +35,29 @@ def bounding_box_intersection_over_union(boxA, boxB):
   # return the intersection over union value
   return iou
 
+def convert_xml_file_to_dict(xmlFile, dict):
+	tree = ET.parse(xmlFile)
+	root = tree.getroot()
+	counter = 0
+	for p in root.findall('.//object'):
+		label = p.find('name').text
+		pchildren = p.getchildren()
+		for child in pchildren:
+			if child.tag == 'bndbox':
+				for t in child.getchildren():
+					if t.tag == 'xmin':
+						xmin = t.text
+					elif t.tag == 'ymin':
+						ymin = t.text
+					elif t.tag == 'ymax':
+						ymax = t.text
+					elif t.tag == 'xmax':
+						xmax = t.text		
+		counter += 1 					
+		dict_elem = {'label': label, 'ymin' : float(ymin), 'xmin' : float(xmin) ,'ymax': float(ymax), 'xmax' : float(xmax)}
+		dict_key = 'object%d' % (counter)
+		dict[dict_key] = dict_elem		
+				
 def compare_files(pred_file, GT_file):
 	GT_dict = {}
 	pred_dict = {}
@@ -41,9 +65,10 @@ def compare_files(pred_file, GT_file):
 	true_negative = 0
 	false_positive = 0 
 	false_negative = 0
-	convert_file_to_dict(pred_file, pred_dict)
-	convert_file_to_dict(GT_file, GT_dict)
-	
+
+	convert_file_txt_to_dict(pred_file, pred_dict)
+	convert_xml_file_to_dict(GT_file,GT_dict)
+	pdb.set_trace()
 	for pred_object, pred_object_dict in pred_dict.items():
 		pred_label = pred_object_dict['label']
 		pred_box = create_list_of_values_for_bb(pred_object_dict)
@@ -65,65 +90,41 @@ def compare_files(pred_file, GT_file):
 	precision = true_positive / (true_positive + false_positive)
 
 	recall = true_positive / (true_positive + false_negative)
+	pdb.set_trace()
 
 def create_list_of_values_for_bb(dict):
 	box = [dict['ymin'], dict['xmin'], dict['ymax'], dict['xmax']]
 	return box
 
-def convert_file_to_dict(file,dict):
+def convert_file_txt_to_dict(file,dict):
 	with open(file) as f:
 		counter = 0
 		for line in f:
 			counter += 1
 			(label, ymin, xmin, ymax, xmax) = convert_line_to_bb_and_label(line)
-			dict_elem = {'label': label, 'ymin' : float(ymin), 'xmin' : float(xmin) ,'ymax': float(ymax), 'xmax' : float(xmax)}
+
+			dict_elem = {'label': label[16:], 'ymin' : float(ymin[6:]), 'xmin' : float(xmin[6:]) ,'ymax': float(ymax[6:]), 'xmax' : float(xmax[6:])}
 			dict_key = 'object%d' % (counter)
 			dict[dict_key] = dict_elem	
 
 def convert_line_to_bb_and_label(line):
-	label = get_label(line)
-	ymin = get_ymin(line)
-	ymax = get_ymax(line)
-	xmin = get_xmin(line)
-	xmax = get_xmax(line)
 
+	label,ymin, xmin, ymax, xmax = line.split(",")
 	return(label, ymin, xmin, ymax, xmax)
 
-def get_label(line):
-	find = re.compile('label:(?:)(.*)(?<=)ymin')
-	label = re.search(find, line).group(1)
-	return label[:-1]
-
-def get_xmin(line):
-	find = re.compile('xmin:(?:)(.*)(?<=)ymax')
-	xmin = re.search(find, line).group(1)
-	return xmin
-
-def get_xmax(line):
-	find = re.compile('xmax:(?:)(.*)')
-	xmax = re.search(find, line).group(1)
-	return xmax
-
-def get_ymin(line):
-	find = re.compile('ymin:(?:)(.*)(?<=)xmin')
-	ymin = re.search(find, line).group(1)
-	return ymin
-
-def get_ymax(line):
-	find = re.compile('ymax:(?:)(.*)(?<=)xmax')
-	ymax = re.search(find, line).group(1)
-	return ymax
-
-
 def main():
-	lst_of_groundtruth_files = os.listdir(GROUND_TRUTH_BOUNDING_BOX_DIR)
 	for network_file in os.listdir(NETWORK_BOUNDING_BOX_DIR):
-		if network_file in lst_of_groundtruth_files:
-			network_file_path = os.path.join(NETWORK_BOUNDING_BOX_DIR, network_file)
-			GT_file_path = os.path.join(GROUND_TRUTH_BOUNDING_BOX_DIR, network_file)
-			compare_files(network_file_path, GT_file_path)
-		else:
-			print('Will not compute iou or precision/recall on file %s, no GT file exist' % (network_file))	
+		for GT_file in lst_of_groundtruth_files:
+			GT_name = os.path.splitext(os.path.basename(GT_file))[0]
+			network_name = os.path.splitext(network_file)[0]
+
+			if network_file.endswith(".txt") and GT_name == network_name:
+				network_file_path = os.path.join(NETWORK_BOUNDING_BOX_DIR, network_file)
+				GT_file_path = os.path.join(GROUND_TRUTH_BOUNDING_BOX_DIR, GT_file)
+				compare_files(network_file_path, GT_file_path)
+			else:
+				print('Will not compute iou or precision/recall on file %s, no GT file exist' % (network_file))	
 
 if __name__ == '__main__':
   	main()
+
