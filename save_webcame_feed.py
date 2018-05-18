@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 #Change the integer to 0 is it is the build in camera on a laptop, or the first connected USB camera for computers with no built-in webcam.
-cap = cv2.VideoCapture(1) # Capture video from camera
+cap = cv2.VideoCapture(0) # Capture video from camera
 
 # Get the width and height of frame
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) + 0.5)
