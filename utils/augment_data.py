@@ -10,7 +10,8 @@ def main(sys):
 	train_folder = sys.argv[2]
 	val_folder = sys.argv[3]
 	test_folder = sys.argv[4]
-	object_names = sys.argv[5]
+	percentage = sys.argv[5]
+	object_names = sys.argv[6]
 
 	input_folder = os.path.abspath(input_folder)
 	all_files_in_dir = os.listdir(input_folder)

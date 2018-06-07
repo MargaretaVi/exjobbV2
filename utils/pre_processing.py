@@ -10,7 +10,8 @@ def main(sys):
 	train_folder = sys.argv[2]
 	val_folder = sys.argv[3]
 	test_folder = sys.argv[4]
-	object_names = sys.argv[5]
+	percentage = sys.argv[5]
+	object_names = sys.argv[6]
 
 	object_names = object_names.split(',')
 
@@ -24,17 +25,18 @@ def main(sys):
 			all_images.append(file)
 
 	#dict only contains .jpeg files
-	object_dict = sort_list(all_images, object_names)
+	object_dict = sort_list(all_images, object_names,percentage)
 	all_images_to_change = create_list_from_dict(object_dict)
 	divided_dict = divide_data_test_train_validation(object_dict)
 	com_training_set , com_validation_set, com_testing_set = create_complete_sets(input_folder,
 		divided_dict['training'], divided_dict['validation'], divided_dict['testing'])
 
+	#change_images(all_images_to_change, input_folder)
 	copy_files(train_folder, com_training_set)
 	copy_files(val_folder, com_validation_set)
 	copy_files(test_folder, com_testing_set)
 
-	change_images(all_images_to_change, input_folder)
+
 
 def create_list_from_dict(dict):
 	tmp = []
@@ -107,14 +109,20 @@ def num_of_files_to_change(lst):
 	#divide by two since there are .xml files in the lst as well.
 	return math.ceil(len(lst)/2*percentage)
 
-def sort_list(lst, object_names):
+def sort_list(lst, object_names, percentage):
 	obj_dict = {}
 	for name in object_names:
 		tmp = []
 		for file in lst:
 			if name in file:
 				tmp.append(file)
-		obj_dict[name] = tmp
+		if percentage == '100':
+			obj_dict[name] = tmp
+		else:
+			random.shuffle(tmp)
+			num_files = math.ceil(len(tmp) * float(percentage))
+			subset_of_tmp = tmp[:num_files]
+			obj_dict[name] = subset_of_tmp
 	return obj_dict
 
 def change_images(list_of_images, input_folder):
