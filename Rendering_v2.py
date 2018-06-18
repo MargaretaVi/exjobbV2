@@ -7,7 +7,6 @@ from random import *
 def pixel_area():
 	return bpy.context.scene.render.resolution_x * bpy.context.scene.render.resolution_y
 
-
 def render_resolution():
     bpy.context.scene.render.resolution_percentage = 100
     bpy.context.scene.render.resolution_x = 512
@@ -414,8 +413,6 @@ def add_texture_to_all_objects(object_dict, list_of_texture, texture_folder_full
         render_object= object_dict[key]
         rand_texture = rand.choice(list_of_texture)
 
-
-
 #Add texture to object
 def add_texture_to_object(obj,texture_full_path):
     mat = material_for_texture(texture_full_path)
@@ -430,7 +427,6 @@ def change_scale_of_object(obj, index, scale_factor, image_area, scene, cam_obj)
     (_, _, width, height) = parse_bb_box(str(camera_view_bounds_2d(scene, cam_obj, obj)))
     obj_area_rel_to_image = int(width) * int(height)
     ratio = obj_area_rel_to_image / image_area
-    print('ratio:{}, obj_area_rel_to_image: {}, image_area: {}'.format(ratio, obj_area_rel_to_image, image_area))
     x_scale = obj.scale[0]
     y_scale = obj.scale[1]
     z_scale = obj.scale[2]
